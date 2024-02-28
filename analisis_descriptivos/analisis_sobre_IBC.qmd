@@ -1,0 +1,345 @@
+---
+title: "Analisis descriptivo sobre IBC"
+author: "Nicolás Verano"
+lang: es 
+format: html
+editor: visual
+---
+
+```{r config_packages, echo=FALSE, message=FALSE}
+
+source("setup/load_packages.R")
+
+```
+
+```{r config_conections, echo=FALSE, message=FALSE}
+
+source("setup/create_conections.R")
+
+```
+
+```{r config_params_querys}
+
+.periodo_tiempo = "periodo_no_salud"
+simbolo_periodo_tiempo = sym(.periodo_tiempo)
+
+```
+
+
+```{r config_functions, echo=FALSE, message=FALSE}
+
+generar_resumen_ibc <- function(.vars_agrupan, .var_nom_periodo_pila, .tabla_para_resumen, .tabla_para_inflacion, .var_nom_periodo_inflacion = "periodo_date")
+{
+  tot_vars_agrupadas = c(.var_nom_periodo_pila, .vars_agrupan) %>% unique()
+  tot_vars_agrupadas_sin_vacio = tot_vars_agrupadas %>% discard(~.x == "''")
+  print(tot_vars_agrupadas_sin_vacio)
+  simbolos_agrupar = syms(tot_vars_agrupadas_sin_vacio)
+  
+  resumen_para_retornar <- 
+    .tabla_para_resumen %>% 
+    dplyr::group_by(simbolos_agrupar) %>% 
+    dplyr::summarise(
+      total_personas_distintas = n_distinct(cod_cotizante),
+      total_riesgos = n(),
+      total_empresas = n_distinct(aportante), 
+      cuantiles_ibc_pila_sobre_30_dias = approx_quantiles(ibc_rprof_verdadero_30dias, 100L),
+      media_ibc_pila_sobre_30_dias = mean(ibc_rprof_verdadero_30dias),
+      total_ibc_sobre_30_dias = sum(ibc_rprof_verdadero_30dias),
+      desviacion_ibc_pila_sobre_30_dias = sd(ibc_rprof_verdadero_30dias),
+      cuantiles_ibc_pila_real = approx_quantiles(ibc_rprof_verdadero, 100L),
+      media_ibc_pila_real = mean(ibc_rprof_verdadero),
+      total_ibc_pila_real = sum(ibc_rprof_verdadero),
+      desviacion_ibc_pila_real = sd(ibc_rprof_verdadero),
+      ) %>% 
+    ungroup() %>% 
+    collect() %>% 
+    mutate(across(.vars_agrupan, ~as.character(.x))) %>%
+    mutate(across(.vars_agrupan, ~if_else(is.na(.x),"Desconocido",.x))) %>% 
+    mutate(maximo_ibc_pila_sobre_30_dias = map_dbl(cuantiles_ibc_pila_sobre_30_dias, 101),
+           q95_ibc_pila_sobre_30_dias = map_dbl(cuantiles_ibc_pila_sobre_30_dias, 96),
+           q75_ibc_pila_sobre_30_dias = map_dbl(cuantiles_ibc_pila_sobre_30_dias, 76),
+           q50_ibc_pila_sobre_30_dias = map_dbl(cuantiles_ibc_pila_sobre_30_dias, 51),
+           q25_ibc_pila_sobre_30_dias = map_dbl(cuantiles_ibc_pila_sobre_30_dias, 26),
+           q5_ibc_pila_sobre_30_dias = map_dbl(cuantiles_ibc_pila_sobre_30_dias, 6),
+           minimo_ibc_pila_sobre_30_dias = map_dbl(cuantiles_ibc_pila_sobre_30_dias, 1),
+           maximo_ibc_pila_real = map_dbl(cuantiles_ibc_pila_real, 101),
+           q95_ibc_pila_real = map_dbl(cuantiles_ibc_pila_real, 96),
+           q75_ibc_pila_real = map_dbl(cuantiles_ibc_pila_real, 76),
+           q50_ibc_pila_real = map_dbl(cuantiles_ibc_pila_real, 51),
+           q25_ibc_pila_real = map_dbl(cuantiles_ibc_pila_real, 26),
+           q5_ibc_pila_real = map_dbl(cuantiles_ibc_pila_real, 6),
+           minimo_ibc_pila_real = map_dbl(cuantiles_ibc_pila_real, 1)
+           ) %>% 
+    select(-starts_with("cuantiles")) %>% 
+    mutate(!!.var_nom_periodo_pila := as.Date(!!sym(.var_nom_periodo_pila))) %>%
+    left_join(.tabla_para_inflacion, by = setNames(.var_nom_periodo_inflacion, .var_nom_periodo_pila)) %>% 
+    dplyr::mutate(across(contains("ibc"), ~.x * fac_val_pres, .names = "{.col}_VP")) %>% 
+    dplyr::rename_with(.cols = contains("IBC") & !ends_with("VP") , .fn = ~str_c(.x, "_VN"))%>% 
+  select(-total_personas_distintas, -total_riesgos, -fac_val_pres, -total_empresas) %>% 
+  pivot_longer(cols = contains("ibc"), names_to = "estadisticas", values_to = "valor_est") %>% 
+  mutate(tiempo_est = if_else(str_detect(estadisticas, "_VN"), "Valor Nominal", "Valor Presente"),
+         base_est = if_else(str_detect(estadisticas, "sobre_30"), "30 Dias", "Dias Obs"),
+         tipo_est = str_split(estadisticas, pattern = "_", simplify = T)[,1]
+         ) %>% 
+   mutate(tipo_est = factor(tipo_est,levels = c("maximo", "q95", "q75", "media", "q50","q25", "q5", "minimo", "total", "desviacion"), ordered = T))
+  
+  return(resumen_para_retornar)
+  
+  
+}
+```
+```{r load_tablas_supuestos, echo=FALSE, message=FALSE}
+
+sheet_url_inflacion <- 'https://docs.google.com/spreadsheets/d/1GMPm6YQiUOFyinbBE4SD6QiD4KrY0dKtpc1pfyI1myU/edit?pli=1#gid=1164769298'
+
+tabla_supuesto_inflacion <- 
+  read_sheet(sheet_url_inflacion, sheet = 'MO_Inf',skip = 4) %>% 
+  mutate(periodo_date = ym(AnoMes)) %>% 
+  select(periodo_date, fac_val_pres = TrendFactor)
+
+```
+
+
+```{r load_tabla_variables_graficas, echo=FALSE, message=FALSE}
+sheet_url_variables_analizar <- 'https://docs.google.com/spreadsheets/d/1XGsMY3k-UbDVZEds5khTsNnLEO8pbZIA7H9QemJfrCs/edit#gid=0'
+
+tabla_variables_analizar <- 
+  read_sheet(sheet_url_variables_analizar, sheet = 'name_vars_analizar',skip = 0) 
+
+
+```
+
+
+```{r load_master_tables, echo=FALSE, message=FALSE}
+
+tabla_personas <- tbl(conexion_bigquery_general, "bases_pila.consolidado_persona")
+
+```
+
+```{r add_fields_personas_table, echo=FALSE }
+
+tabla_personas_con_campos_añadidos <- 
+  tabla_personas %>% 
+  mutate(periodo_no_salud = as_date(periodo_no_salud)) %>% 
+  mutate(
+    #mes_salud = sql("EXTRACT(DATE FROM periodo_salud)"),
+    anno_periodo_no_salud = sql("EXTRACT(YEAR from periodo_no_salud)"),
+     semestre_periodo_salud = sql("CASE
+    WHEN EXTRACT(MONTH FROM periodo_no_salud) <= 6  
+    THEN FORMAT_DATE('%Y-01-01', periodo_no_salud)  
+    ELSE FORMAT_DATE('%Y-07-01', periodo_no_salud)
+  END")
+    ) 
+
+
+```
+
+```{r obtener_df_para_graficos, echo=FALSE}
+
+vectores_vars_graficar <- tabla_variables_analizar$vars_obtener_info
+nombres_vars_graficar <- tabla_variables_analizar$name_var_grafico
+
+total_consultas_info <- 
+  map(vectores_vars_graficar, ~generar_resumen_ibc(.vars_agrupan = .x, .var_nom_periodo_pila = .periodo_tiempo, .tabla_para_resumen = tabla_personas_con_campos_añadidos, .tabla_para_inflacion = tabla_supuesto_inflacion,.var_nom_periodo_inflacion = "periodo_date")) %>% 
+  set_names(nombres_vars_graficar)
+
+```
+
+
+```{r palletas_y_homolagacion_nombres, echo=FALSE}
+
+# Nombre de las estadisticas
+nombres_estadisticas <-  c("maximo" = "Maximo", "media" = "Media", "q95" = "Cuantil 95", "q75" = "Cuantil 75", "q50" = "Mediana", "q25" = "Cuantil 25", "q5" = "Cuantil 5", "minimo" = "Minimo")
+
+nombres_genero <- c("F" = "Femenino", "M" = "Masculino")
+
+nombres_tam_empresa <- c("1" = "Independiente", "2" = "Pequeña", "3" = "Micro", "4" = "Mediana", "5" = "Grande", "6" = "Super", "Desconocido" = "Desconocido")
+ 
+# Paleta de colores para las estadisticas
+
+colores_estadisticas <-  c("maximo" = "#d62728", "media" = "#1f77b4", "q95" = "#e377c2", "q75" = "#bcbd22", "q50" = "#2ca02c", "q25" = "#17becf", "q5" = "#aec7e8","minimo" = "#7f7f7f")
+
+# Paleta de colores para los generos
+
+colores_genero <- c("F" = "#CE93D8", "M" = "#90CAF9")
+
+# Paleta de colores para los tamaños de empresa
+
+colores_tam_empresa <- c("1" = "#ADD8E6", "2" = "#90EE90", "3" = "#FFD700", "4" = "#FFA500", "5" = "#F44336", "6" = "#800080", "Desconocido" = "#808080")
+
+```
+
+```{r grafico_ibc_poblacion_general, echo=FALSE}
+
+
+
+
+```
+
+```{r grafico_ibc_por_genero, echo=FALSE}
+
+```
+
+
+
+
+## Anslisis del IBC en la población general
+
+```{r graph_ibc_poblacion_general, echo=FALSE}
+
+estadisticas_usar_grafico = c("media", "q95", "q75", "q50", "q25", "q5", "minimo")
+names_estadisticas_usar_grafico = nombres_estadisticas[names(nombres_estadisticas) %in% estadisticas_usar_grafico]
+colores_usar_grafico =  colores_estadisticas[names(colores_estadisticas) %in% estadisticas_usar_grafico]
+
+ graf_est_ibc_serie_historica <- 
+    total_consultas_info[["F"]] %>% 
+    mutate(base_est = as_factor(base_est) %>% fct_rev()) %>% 
+    filter(tipo_est %in% names(names_estadisticas_usar_grafico)) %>%
+    ggplot(aes(x = {{ simbolo_periodo_tiempo }} , y = valor_est, col = tipo_est, group = interaction(tipo_est, base_est, tiempo_est))) +
+    geom_line(linewidth = 1) +
+    scale_y_continuous(labels = scales::label_currency(accuracy = 0.1,big.mark = ",", scale = 1/1e6,suffix = " Mll"),n.breaks = 10) +
+    scale_x_date(date_breaks = "6 month", date_labels = "%b %Y") +
+    facet_grid(rows =  vars(base_est), cols = vars(tiempo_est)) +
+    scale_color_manual(values = colores_usar_grafico, labels = names_estadisticas_usar_grafico, name = "Est. Graf") +
+    theme_bw() +
+    theme(axis.text.x = element_text(angle = 60, hjust = 1)) +
+    labs(title = "Estadisticas Historicas IBC en población general", subtitle = "Fuente: Base Maestra Cotizantes",
+         x = "Periodo de reporte", y = "Estadistica sobre el IBC (En millones)",
+         caption = "Periodo de referencia para el valor presente: 2023-12"
+         )
+ 
+ graf_est_ibc_serie_historica
+```
+
+## Anslisis del IBC por genero
+
+```{r graph_ibc_por_genero, echo=FALSE}
+
+estadisticas_usar_grafico = c("q95", "media", "q50")
+genero_usar_grafico = c("F", "M")
+names_genero_usar_grafico = nombres_genero[names(nombres_genero) %in% genero_usar_grafico]
+names_estadisticas_usar_grafico = nombres_estadisticas[names(nombres_estadisticas) %in% estadisticas_usar_grafico]
+colores_usar_grafico =  colores_genero[names(colores_genero) %in% gnero_usar_grafico]
+
+
+
+
+ graf_est_ibc_serie_historica_x_genero <- 
+    total_consultas_info$Genero %>% 
+    filter(base_est == "30 Dias") %>%
+    filter(tipo_est %in% names(names_estadisticas_usar_grafico)) %>%
+    filter(tiempo_est == "Valor Presente") %>%
+    filter(sexo %in% genero_usar_grafico) %>%
+    ggplot(aes(x = {{ simbolo_periodo_tiempo }} , y = valor_est, col = sexo, group = interaction(sexo, tipo_est))) +
+    geom_line(linewidth = 1) +
+    geom_smooth(method = 'loess', formula = 'y ~ x', linetype = 3, alpha = 0.5) +
+    scale_y_continuous(labels = scales::label_currency(accuracy = 0.1,big.mark = ",", scale = 1/1e6,suffix = " Mll") ,n.breaks = 10,limits =  c(0,NA)) +
+    scale_x_date(date_breaks = "6 month", date_labels = "%b %Y") +
+    facet_wrap(~tipo_est, labeller = labeller(tipo_est = names_estadisticas_usar_grafico), dir = "v",scales = "free_y") +
+    scale_color_manual(values = colores_usar_grafico, labels = names_genero_usar_grafico, name = "Genero") +
+    theme_bw() +
+    theme(axis.text.x = element_text(angle = 60, hjust = 1)) +
+    labs(title = "Estadisticas Historicas IBC discriminado por genero", subtitle = "Datos en valor presente sobre un IBC base de 30 Dias",
+         x = "Periodo de reporte", y = "Estadistica sobre el IBC (En millones)",
+         caption = "Periodo de referencia para el valor presente: 2023-12"
+         )
+ 
+ graf_est_ibc_serie_historica_x_genero
+
+
+```
+
+## Analisis del IBC por rango de edad
+
+```{r graph_ibc_por_rango_edad, echo=FALSE}
+
+estadisticas_usar_grafico = c("media", "q50")
+names_genero_usar_grafico = nombres_genero[names(nombres_genero) %in% genero_usar_grafico]
+names_estadisticas_usar_grafico = nombres_estadisticas[names(nombres_estadisticas) %in% estadisticas_usar_grafico]
+colores_usar_grafico =  colores_genero[names(colores_genero) %in% gnero_usar_grafico]
+
+
+
+
+ data_est_ibc_serie_historica_x_edad_mapa_calor <- 
+    total_consultas_info$`Rango de Edad` %>% 
+    filter(base_est == "30 Dias") %>%
+    filter(tipo_est %in% names(names_estadisticas_usar_grafico)) %>%
+    filter(tiempo_est == "Valor Presente") %>%
+  mutate(categoria_edad = factor(categoria_edad, levels = c("Menos de 15 años","de 15 a 20 años", "de 21 a 25 años", "de 26 a 30 años", "de 31 a 35 años",  "de 36 a 40 años",  "de 41 a 45 años", "de 46 a 50 años",  "de 51 a 55 años",  "de 56 a 60 años",  "de 61 a 65 años", "de 66 a 70 años", "Mayor a 70 años", "Desconocido"),ordered = T))
+ 
+ # Calcula breaks adicionales
+valor_min <- min(data_est_ibc_serie_historica_x_edad_mapa_calor$valor_est, na.rm = TRUE)
+valor_max <- max(data_est_ibc_serie_historica_x_edad_mapa_calor$valor_est, na.rm = TRUE)
+valor_medio <- median(data_est_ibc_serie_historica_x_edad_mapa_calor$valor_est, na.rm = TRUE)
+q25 <- quantile(data_est_ibc_serie_historica_x_edad_mapa_calor$valor_est, probs = 0.25, na.rm = TRUE)
+q75 <- quantile(data_est_ibc_serie_historica_x_edad_mapa_calor$valor_est, probs = 0.75, na.rm = TRUE)
+desv = sd(data_est_ibc_serie_historica_x_edad_mapa_calor$valor_est)
+# Genera una secuencia de breaks desde el mínimo al máximo valor
+# Puedes ajustar la cantidad de breaks según lo deseado
+breaks_valor_est <- seq(valor_min, valor_max, length.out = 5)
+colores_contrastados <- c("#2c7bb6", "#abd9e9", "#ffffbf", "#fdae61", "#d7191c")
+# Crear el heatmap
+ggplot(data_est_ibc_serie_historica_x_edad_mapa_calor, aes(x = periodo_no_salud, y = categoria_edad, fill = valor_est)) +
+  geom_tile(color = "black", linewidth = 0.1) + # Usar geom_tile para crear el mapa de calor
+  scale_fill_gradientn(
+    colours = colores_contrastados,
+    values = scales::rescale(c(min(data_est_ibc_serie_historica_x_edad_mapa_calor$valor_est, na.rm = TRUE),
+                       median(data_est_ibc_serie_historica_x_edad_mapa_calor$valor_est, na.rm = TRUE), 
+                       max(data_est_ibc_serie_historica_x_edad_mapa_calor$valor_est, na.rm = TRUE))),
+    name = "IBC en VP",
+    n.breaks = 8,
+    labels = scales::dollar_format(prefix = "$", suffix = " Mll", big.mark = ",", scale = 1 / 1e6)
+  ) +
+  scale_x_date(date_breaks = "6 month", date_labels = "%b %Y") +
+  facet_wrap(~tipo_est) +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) + # Rotar las etiquetas del eje X para mejorar la legibilidad
+  labs(
+    title = "Heatmap del IBC Promedio y Medio sobre 30 días por Categoría de Edad",
+    subtitle = "Datos en valor presente sobre un IBC base de 30 Dias",
+    x = "Periodo de reporte", y = "Grupo de Edad",
+    caption = "Periodo de referencia para el valor presente: 2023-12"
+  )
+   
+   
+   
+
+```
+
+## Analisis del IBC por tamaño de empresa
+
+```{r graph_ibc_por_tam_empresa, echo=FALSE}
+estadisticas_usar_grafico = c("media", "q75", "q50", "q25")
+tam_empresa_usar_grafico = c("1", "2", "3", "4", "5", "6")
+nombres_tamaño_empresa = nombres_tam_empresa[names(nombres_tam_empresa) %in% tam_empresa_usar_grafico]
+names_estadisticas_usar_grafico = nombres_estadisticas[names(nombres_estadisticas) %in% estadisticas_usar_grafico]
+colores_usar_grafico =  colores_tam_empresa[names(colores_tam_empresa) %in% tam_empresa_usar_grafico]
+
+
+graf_est_ibc_serie_historica_tam_empresa <- 
+  total_consultas_info$`Tamaño de Empresa` %>% 
+  filter(categoria_tamano_empresa_general %in% tam_empresa_usar_grafico) %>%
+  mutate(categoria_tamano_empresa_general = factor(categoria_tamano_empresa_general, levels = c("1", "2", "3", "4", "5", "6", "Desconocido"),ordered = T)) %>% 
+    filter(tipo_est %in% names(names_estadisticas_usar_grafico)) %>%
+    filter(base_est == "30 Dias") %>% 
+    filter(tiempo_est == "Valor Presente") %>% 
+    ggplot(aes(x = periodo_no_salud, y = valor_est, col = categoria_tamano_empresa_general, group = interaction(categoria_tamano_empresa_general, tipo_est))) +
+    geom_line(linewidth = 1) +
+  geom_smooth(method = 'loess', formula = 'y ~ x', linetype = 3, alpha = 0.5,se = F) + 
+    scale_y_continuous(labels = scales::label_currency(accuracy = 0.1,big.mark = ",", scale = 1/1e6,suffix = " Mll"),n.breaks = 5,limits = c(0, NA)) +
+    scale_x_date(date_breaks = "6 month", date_labels = "%b %Y") +
+    facet_wrap(~tipo_est, labeller = labeller(tipo_est = names_estadisticas_usar_grafico)) +
+    scale_color_manual(values = colores_usar_grafico, labels = nombres_tamaño_empresa, name = "Tam. Empresa") +
+    theme_bw() +
+    theme(axis.text.x = element_text(angle = 60, hjust = 1)) +
+    labs(title = "Serie historica estadisticas IBC por tamaño de empresa", subtitle = "Datos en valor presente sobre un IBC base de 30 Dias",
+         x = "Periodo de reporte", y = "Estadistica sobre el IBC (En millones)",
+         caption = "Periodo de referencia para el valor presente: 2023-12"
+         )
+
+graf_est_ibc_serie_historica_tam_empresa
+```
+
+## IBC por región
+
