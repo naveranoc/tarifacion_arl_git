@@ -8,13 +8,13 @@ editor: visual
 
 ```{r config_packages, echo=FALSE, message=FALSE}
 
-source("setup/load_packages.R")
+source("../setup/load_packages.R")
 
 ```
 
 ```{r config_conections, echo=FALSE, message=FALSE}
 
-source("setup/create_conections.R")
+source("../setup/create_conections.R")
 
 ```
 
@@ -24,7 +24,6 @@ source("setup/create_conections.R")
 simbolo_periodo_tiempo = sym(.periodo_tiempo)
 
 ```
-
 
 ```{r config_functions, echo=FALSE, message=FALSE}
 
@@ -88,6 +87,7 @@ generar_resumen_ibc <- function(.vars_agrupan, .var_nom_periodo_pila, .tabla_par
   
 }
 ```
+
 ```{r load_tablas_supuestos, echo=FALSE, message=FALSE}
 
 sheet_url_inflacion <- 'https://docs.google.com/spreadsheets/d/1GMPm6YQiUOFyinbBE4SD6QiD4KrY0dKtpc1pfyI1myU/edit?pli=1#gid=1164769298'
@@ -99,7 +99,6 @@ tabla_supuesto_inflacion <-
 
 ```
 
-
 ```{r load_tabla_variables_graficas, echo=FALSE, message=FALSE}
 sheet_url_variables_analizar <- 'https://docs.google.com/spreadsheets/d/1XGsMY3k-UbDVZEds5khTsNnLEO8pbZIA7H9QemJfrCs/edit#gid=0'
 
@@ -108,7 +107,6 @@ tabla_variables_analizar <-
 
 
 ```
-
 
 ```{r load_master_tables, echo=FALSE, message=FALSE}
 
@@ -145,7 +143,6 @@ total_consultas_info <-
 
 ```
 
-
 ```{r palletas_y_homolagacion_nombres, echo=FALSE}
 
 # Nombre de las estadisticas
@@ -153,8 +150,12 @@ nombres_estadisticas <-  c("maximo" = "Maximo", "media" = "Media", "q95" = "Cuan
 
 nombres_genero <- c("F" = "Femenino", "M" = "Masculino")
 
-nombres_tam_empresa <- c("1" = "Independiente", "2" = "Pequeña", "3" = "Micro", "4" = "Mediana", "5" = "Grande", "6" = "Super", "Desconocido" = "Desconocido")
- 
+nombres_tam_empresa <- c("1" = "Independiente", "2" = "Mini", "3" = "Micro", "4" = "Pequeña", "5" = "Pymes", "6" = "Grandes", "Desconocido" = "Desconocido")
+
+nombres_region = c("Desconocido" = "Desconocido", "BOGOTA" = "Bogotá", "Central" = "Central",  "Oriental" = "Oriental",  "Pacífica" = "Pacífica", "Atlántica" = "Atlántica", "Orinoquía y Amazonía" = "Ori + Amaz")
+
+nombres_tipo_cot = c("Desconocido" = "Desconocido", "otros" = "Otros", "estudiante" = "Estudiante", "dependiente" = "Dependiente", "independiente" = "Independiente")
+  
 # Paleta de colores para las estadisticas
 
 colores_estadisticas <-  c("maximo" = "#d62728", "media" = "#1f77b4", "q95" = "#e377c2", "q75" = "#bcbd22", "q50" = "#2ca02c", "q25" = "#17becf", "q5" = "#aec7e8","minimo" = "#7f7f7f")
@@ -167,22 +168,11 @@ colores_genero <- c("F" = "#CE93D8", "M" = "#90CAF9")
 
 colores_tam_empresa <- c("1" = "#ADD8E6", "2" = "#90EE90", "3" = "#FFD700", "4" = "#FFA500", "5" = "#F44336", "6" = "#800080", "Desconocido" = "#808080")
 
-```
+colores_region <- c("Desconocido" = "#757575", "BOGOTA" = "#377eb8",  "Central" = "#7fc97f", "Oriental" = "#ffdf00", "Pacífica" = "#a6cee3", "Atlántica" = "#17becf", "Orinoquía y Amazonía" = "#006d2c")
 
-```{r grafico_ibc_poblacion_general, echo=FALSE}
-
-
-
+colores_tipo_cot = c("Desconocido" = "#808080", "otros" = "#add8e6", "estudiante" = "#008000", "dependiente" = "#ffa500", "independiente" = "#00008b")
 
 ```
-
-```{r grafico_ibc_por_genero, echo=FALSE}
-
-```
-
-
-
-
 ## Anslisis del IBC en la población general
 
 ```{r graph_ibc_poblacion_general, echo=FALSE}
@@ -219,8 +209,7 @@ estadisticas_usar_grafico = c("q95", "media", "q50")
 genero_usar_grafico = c("F", "M")
 names_genero_usar_grafico = nombres_genero[names(nombres_genero) %in% genero_usar_grafico]
 names_estadisticas_usar_grafico = nombres_estadisticas[names(nombres_estadisticas) %in% estadisticas_usar_grafico]
-colores_usar_grafico =  colores_genero[names(colores_genero) %in% gnero_usar_grafico]
-
+colores_usar_grafico =  colores_genero[names(colores_genero) %in% genero_usar_grafico]
 
 
 
@@ -256,7 +245,6 @@ colores_usar_grafico =  colores_genero[names(colores_genero) %in% gnero_usar_gra
 estadisticas_usar_grafico = c("media", "q50")
 names_genero_usar_grafico = nombres_genero[names(nombres_genero) %in% genero_usar_grafico]
 names_estadisticas_usar_grafico = nombres_estadisticas[names(nombres_estadisticas) %in% estadisticas_usar_grafico]
-colores_usar_grafico =  colores_genero[names(colores_genero) %in% gnero_usar_grafico]
 
 
 
@@ -326,7 +314,7 @@ graf_est_ibc_serie_historica_tam_empresa <-
     filter(tiempo_est == "Valor Presente") %>% 
     ggplot(aes(x = periodo_no_salud, y = valor_est, col = categoria_tamano_empresa_general, group = interaction(categoria_tamano_empresa_general, tipo_est))) +
     geom_line(linewidth = 1) +
-  geom_smooth(method = 'loess', formula = 'y ~ x', linetype = 3, alpha = 0.5,se = F) + 
+  geom_smooth(method = 'loess', formula = 'y ~ x', linetype = 3, alpha = 0.5,se = F, linewidth = 0.5) + 
     scale_y_continuous(labels = scales::label_currency(accuracy = 0.1,big.mark = ",", scale = 1/1e6,suffix = " Mll"),n.breaks = 5,limits = c(0, NA)) +
     scale_x_date(date_breaks = "6 month", date_labels = "%b %Y") +
     facet_wrap(~tipo_est, labeller = labeller(tipo_est = names_estadisticas_usar_grafico)) +
@@ -342,4 +330,118 @@ graf_est_ibc_serie_historica_tam_empresa
 ```
 
 ## IBC por región
+
+```{r graph_ibc_por_region, echo=FALSE}
+
+estadisticas_usar_grafico = c("media", "q75", "q50", "q25")
+region_usar_grafico = c("BOGOTA", "Central", "Oriental", "Pacífica", "Atlántica", "Orinoquía y Amazonía")
+nombres_region_grafico = nombres_region[names(nombres_region) %in% region_usar_grafico]
+names_estadisticas_usar_grafico = nombres_estadisticas[names(nombres_estadisticas) %in% estadisticas_usar_grafico]
+colores_usar_grafico =  colores_region[names(colores_region) %in% region_usar_grafico]
+
+graf_est_ibc_serie_historica_region <- 
+  total_consultas_info[["Región"]] %>% 
+  filter(region_nombre  %in% region_usar_grafico) %>%
+    filter(tipo_est %in% names(names_estadisticas_usar_grafico)) %>%
+    filter(base_est == "30 Dias") %>% 
+    filter(tiempo_est == "Valor Presente") %>% 
+    ggplot(aes(x = periodo_no_salud, y = valor_est, col = region_nombre , group = interaction(region_nombre, tipo_est))) +
+    geom_line(linewidth = 1) +
+  geom_smooth(method = 'loess', formula = 'y ~ x', linetype = 3, alpha = 0.5,se = F, linewidth = 0.5) + 
+    scale_y_continuous(labels = scales::label_currency(accuracy = 0.1,big.mark = ",", scale = 1/1e6,suffix = " Mll"),n.breaks = 5,limits = c(0, NA)) +
+    scale_x_date(date_breaks = "6 month", date_labels = "%b %Y") +
+    facet_wrap(~tipo_est, labeller = labeller(tipo_est = names_estadisticas_usar_grafico)) +
+    scale_color_manual(values = colores_usar_grafico, labels = nombres_region_grafico, name = "Región") +
+    theme_bw() +
+    theme(axis.text.x = element_text(angle = 60, hjust = 1)) +
+    labs(title = "Serie historica estadisticas IBC por Región", subtitle = "Datos en valor presente sobre un IBC base de 30 Dias",
+         x = "Periodo de reporte", y = "Estadistica sobre el IBC (En millones)",
+         caption = "Periodo de referencia para el valor presente: 2023-12"
+         )
+
+graf_est_ibc_serie_historica_region
+```
+
+## IBC por grupo economico
+
+```{r graph_ibc_por_grupo_economico, echo=FALSE}
+
+estadisticas_usar_grafico = c("media", "q75", "q50", "q25")
+nombres_aect = c("CONSTRUCCIÓN" = "Construcción", "ACTIVIDADES INMOBILIARIAS" = "Act. Inmo", "EXPLOTACIÓN DE MINAS Y CANTERAS" = "Explo. Min y Cant", "SUMINISTRO DE ELECTRICIDAD, GAS, VAPOR Y AIRE ACONDICIONADO" = "Sumi. elect + etc", "ACTIVIDADES DE ORGANIZACIONES Y ENTIDADES EXTRATERRITORIALES " = "Act OET", "ACTIVIDADES DE ATENCIÓN DE LA SALUD HUMANA Y DE ASISTENCIA SOCIAL" = "Act aten salud hum", "ADMINISTRACIÓN PÚBLICA Y DEFENSA; PLANES DE SEGURIDAD SOCIAL DE AFILIACIÓN OBLIGATORIA" = "Admin pub y def.", "ACTIVIDADES DE LOS HOGARES INDIVIDUALES EN CALIDAD DE EMPLEADORES; ACTIVIDADES NO DIFERENCIADAS DE LOS HOGARES INDIVIDUALES COMO PRODUCTORES DE BIENES Y SERVICIOS PARA USO PROPIO" = "Act. Hogares ind")
+
+
+colores_aect = c("CONSTRUCCIÓN" = "#ffa500", "ACTIVIDADES INMOBILIARIAS" = "#d2b48c", "EXPLOTACIÓN DE MINAS Y CANTERAS" = "#696969", "SUMINISTRO DE ELECTRICIDAD, GAS, VAPOR Y AIRE ACONDICIONADO" = "#FFD700", "ACTIVIDADES DE ORGANIZACIONES Y ENTIDADES EXTRATERRITORIALES " = "#add8e6", "ACTIVIDADES DE ATENCIÓN DE LA SALUD HUMANA Y DE ASISTENCIA SOCIAL" = "#008000", "ADMINISTRACIÓN PÚBLICA Y DEFENSA; PLANES DE SEGURIDAD SOCIAL DE AFILIACIÓN OBLIGATORIA" = "#007bff", "ACTIVIDADES DE LOS HOGARES INDIVIDUALES EN CALIDAD DE EMPLEADORES; ACTIVIDADES NO DIFERENCIADAS DE LOS HOGARES INDIVIDUALES COMO PRODUCTORES DE BIENES Y SERVICIOS PARA USO PROPIO" = "#800080")
+
+actividades_mas_importante_en_ibc <- 
+  total_consultas_info[["Grupo Economico"]] %>% 
+  filter(base_est == "30 Dias") %>% 
+  filter(tiempo_est == "Valor Presente") %>% 
+  filter(tipo_est == "total") %>% 
+  filter(SeccioAECT != "Desconocido") %>% 
+  mutate(total_ibc = sum(valor_est), .by = SeccioAECT) %>% 
+  mutate(ranking_act = dense_rank(total_ibc)) %>%
+  filter(ranking_act <= 8) %>% 
+  pull("SeccioAECT") %>% 
+  unique()
+
+
+graf_est_ibc_serie_historica_act_eco <- 
+  total_consultas_info[["Grupo Economico"]] %>% 
+  filter(base_est == "30 Dias") %>% 
+  filter(tiempo_est == "Valor Presente") %>% 
+  filter(tipo_est %in% names(names_estadisticas_usar_grafico)) %>%
+  filter(SeccioAECT %in% actividades_mas_importante_en_ibc) %>% 
+  ggplot(aes(x = periodo_no_salud, y = valor_est, col = SeccioAECT , group = interaction(SeccioAECT, tipo_est))) +
+  geom_line(linewidth = 1) +
+  geom_smooth(method = 'loess', formula = 'y ~ x', linetype = 3, alpha = 0.5,se = F, linewidth = 0.5) + 
+    scale_y_continuous(labels = scales::label_currency(accuracy = 0.1,big.mark = ",", scale = 1/1e6,suffix = " Mll"),n.breaks = 5,limits = c(0, NA)) +
+    scale_x_date(date_breaks = "6 month", date_labels = "%b %Y") +
+    facet_wrap(~tipo_est, labeller = labeller(tipo_est = names_estadisticas_usar_grafico)) +
+    scale_color_manual(values = colores_aect, labels = nombres_aect, name = "Act Econom.") +
+    theme_bw() +
+    theme(axis.text.x = element_text(angle = 60, hjust = 1)) +
+    labs(title = "Serie historica estadisticas IBC por Grupo Economico", subtitle = "Datos en valor presente sobre un IBC base de 30 Dias (Top 8 empresas por valor del IBC total)",
+         x = "Periodo de reporte", y = "Estadistica sobre el IBC (En millones)",
+         caption = "Periodo de referencia para el valor presente: 2023-12"
+         )
+
+graf_est_ibc_serie_historica_act_eco
+```
+## IBC por tipo de cotizante
+
+```{r graph_ibc_por_cotizante, echo=FALSE}
+
+estadisticas_usar_grafico = c("media", "q75", "q50", "q25")
+tipocot_usar_grafico = c("otros", "estudiante", "dependiente", "independiente")
+
+
+nombres_tipocot_grafico = nombres_tipo_cot[names(nombres_tipo_cot) %in% tipocot_usar_grafico]
+names_estadisticas_usar_grafico = nombres_estadisticas[names(nombres_estadisticas) %in% estadisticas_usar_grafico]
+colores_usar_grafico =  colores_tipo_cot[names(colores_tipo_cot) %in% tipocot_usar_grafico]
+
+graf_est_ibc_serie_historica_tipocot <- 
+  total_consultas_info[["Tipo Cotizante"]]  %>% 
+  filter(tip_cotizante_proy %in% tipocot_usar_grafico) %>%
+    filter(tipo_est %in% names(names_estadisticas_usar_grafico)) %>%
+    filter(base_est == "30 Dias") %>% 
+    filter(tiempo_est == "Valor Presente") %>% 
+    ggplot(aes(x = periodo_no_salud, y = valor_est, col = tip_cotizante_proy , group = interaction(tip_cotizante_proy, tipo_est))) +
+    geom_line(linewidth = 1) +
+  geom_smooth(method = 'loess', formula = 'y ~ x', linetype = 3, alpha = 0.5,se = F, linewidth = 0.5) + 
+    scale_y_continuous(labels = scales::label_currency(accuracy = 0.1,big.mark = ",", scale = 1/1e6,suffix = " Mll"),n.breaks = 5,limits = c(0, NA)) +
+    scale_x_date(date_breaks = "6 month", date_labels = "%b %Y") +
+    facet_wrap(~tipo_est, labeller = labeller(tipo_est = names_estadisticas_usar_grafico)) +
+    scale_color_manual(values = colores_usar_grafico, labels = nombres_tipocot_grafico, name = "Tipo de Cot.") +
+    theme_bw() +
+    theme(axis.text.x = element_text(angle = 60, hjust = 1)) +
+    labs(title = "Serie historica estadisticas IBC por tipo de cotizante", subtitle = "Datos en valor presente sobre un IBC base de 30 Dias",
+         x = "Periodo de reporte", y = "Estadistica sobre el IBC (En millones)",
+         caption = "Periodo de referencia para el valor presente: 2023-12"
+         )
+
+graf_est_ibc_serie_historica_tipocot
+```
+
+
+## IBC por tipo de aportante
 
