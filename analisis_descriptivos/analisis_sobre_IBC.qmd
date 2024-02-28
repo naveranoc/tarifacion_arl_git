@@ -18,20 +18,19 @@ source("../setup/create_conections.R")
 
 ```
 
-```{r config_params_querys}
+```{r config_params_querys, echo=FALSE, message=FALSE, warning=FALSE}
 
 .periodo_tiempo = "periodo_no_salud"
 simbolo_periodo_tiempo = sym(.periodo_tiempo)
 
 ```
 
-```{r config_functions, echo=FALSE, message=FALSE}
+```{r config_functions, echo=FALSE, message=FALSE, warning=FALSE}
 
 generar_resumen_ibc <- function(.vars_agrupan, .var_nom_periodo_pila, .tabla_para_resumen, .tabla_para_inflacion, .var_nom_periodo_inflacion = "periodo_date")
 {
   tot_vars_agrupadas = c(.var_nom_periodo_pila, .vars_agrupan) %>% unique()
   tot_vars_agrupadas_sin_vacio = tot_vars_agrupadas %>% discard(~.x == "''")
-  print(tot_vars_agrupadas_sin_vacio)
   simbolos_agrupar = syms(tot_vars_agrupadas_sin_vacio)
   
   resumen_para_retornar <- 
@@ -88,7 +87,7 @@ generar_resumen_ibc <- function(.vars_agrupan, .var_nom_periodo_pila, .tabla_par
 }
 ```
 
-```{r load_tablas_supuestos, echo=FALSE, message=FALSE}
+```{r load_tablas_supuestos, echo=FALSE, message=FALSE, warning=FALSE}
 
 sheet_url_inflacion <- 'https://docs.google.com/spreadsheets/d/1GMPm6YQiUOFyinbBE4SD6QiD4KrY0dKtpc1pfyI1myU/edit?pli=1#gid=1164769298'
 
@@ -99,7 +98,7 @@ tabla_supuesto_inflacion <-
 
 ```
 
-```{r load_tabla_variables_graficas, echo=FALSE, message=FALSE}
+```{r load_tabla_variables_graficas, echo=FALSE, message=FALSE, warning=FALSE}
 sheet_url_variables_analizar <- 'https://docs.google.com/spreadsheets/d/1XGsMY3k-UbDVZEds5khTsNnLEO8pbZIA7H9QemJfrCs/edit#gid=0'
 
 tabla_variables_analizar <- 
@@ -108,13 +107,13 @@ tabla_variables_analizar <-
 
 ```
 
-```{r load_master_tables, echo=FALSE, message=FALSE}
+```{r load_master_tables, echo=FALSE, message=FALSE, warning=FALSE}
 
 tabla_personas <- tbl(conexion_bigquery_general, "bases_pila.consolidado_persona")
 
 ```
 
-```{r add_fields_personas_table, echo=FALSE }
+```{r add_fields_personas_table, echo=FALSE, message=FALSE, warning=FALSE }
 
 tabla_personas_con_campos_añadidos <- 
   tabla_personas %>% 
@@ -132,7 +131,7 @@ tabla_personas_con_campos_añadidos <-
 
 ```
 
-```{r obtener_df_para_graficos, echo=FALSE}
+```{r obtener_df_para_graficos, echo=FALSE, message=FALSE, warning=FALSE}
 
 vectores_vars_graficar <- tabla_variables_analizar$vars_obtener_info
 nombres_vars_graficar <- tabla_variables_analizar$name_var_grafico
@@ -143,7 +142,7 @@ total_consultas_info <-
 
 ```
 
-```{r palletas_y_homolagacion_nombres, echo=FALSE}
+```{r palletas_y_homolagacion_nombres, echo=FALSE, message=FALSE}
 
 # Nombre de las estadisticas
 nombres_estadisticas <-  c("maximo" = "Maximo", "media" = "Media", "q95" = "Cuantil 95", "q75" = "Cuantil 75", "q50" = "Mediana", "q25" = "Cuantil 25", "q5" = "Cuantil 5", "minimo" = "Minimo")
